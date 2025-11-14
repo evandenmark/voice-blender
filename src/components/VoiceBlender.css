@@ -1,0 +1,255 @@
+.voice-blender {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 800px;
+  width: 100%;
+}
+
+.voice-selection {
+  margin-bottom: 2rem;
+}
+
+.voice-selection h2 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.voice-selectors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.voice-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voice-selector label {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.voice-selector select {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.voice-selector select:hover:not(:disabled) {
+  border-color: #667eea;
+}
+
+.voice-selector select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.voice-selector select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.text-input-section {
+  margin-bottom: 2rem;
+}
+
+.text-input-section h2 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.text-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s;
+  background: white;
+}
+
+.text-input:hover:not(:disabled) {
+  border-color: #667eea;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
+.blend-method-section {
+  margin-bottom: 1rem;
+}
+
+.blend-method-section h2 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.blend-method-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.blend-method-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #667eea;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.blend-method-btn:hover:not(:disabled) {
+  border-color: #667eea;
+  background: #f8f9ff;
+  transform: translateY(-1px);
+}
+
+.blend-method-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.blend-method-btn.active {
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.blend-method-btn.active:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px);
+}
+
+.blend-method-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.blend-control {
+  margin-bottom: 2rem;
+}
+
+.blend-control h2 {
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+}
+
+.blend-info {
+  color: #666;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.blend-values {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.blend-button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.blend-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.blend-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.blend-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error {
+  background: #fee;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #c33;
+}
+
+.audio-player {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.audio-player h3 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.audio-element {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .voice-blender {
+    padding: 1.5rem;
+  }
+
+  .voice-selectors {
+    grid-template-columns: 1fr;
+  }
+}
+
