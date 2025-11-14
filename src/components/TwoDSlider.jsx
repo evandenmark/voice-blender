@@ -7,6 +7,15 @@ function TwoDSlider({ position, onChange, disabled = false }) {
 
   const handleMouseDown = (e) => {
     if (disabled) return
+    e.preventDefault() // Prevent text selection and other default behaviors
+    setIsDragging(true)
+    updatePosition(e)
+  }
+
+  const handleHandleMouseDown = (e) => {
+    if (disabled) return
+    e.preventDefault()
+    e.stopPropagation() // Prevent container from also handling this
     setIsDragging(true)
     updatePosition(e)
   }
@@ -59,7 +68,7 @@ function TwoDSlider({ position, onChange, disabled = false }) {
         <div
           className="slider-handle"
           style={handleStyle}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={handleHandleMouseDown}
         />
         <div className="slider-labels">
           <span className="label-left">Voice 1</span>

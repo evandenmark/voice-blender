@@ -337,6 +337,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
       // 1. Clone the primary voice into Cartesia
 
+      console.log("CLONING PRIMARY VOICE INTO CARTESIA");
       // Prepare form data for primary voice
       const primaryCartesiaForm = new FormData();
       primaryCartesiaForm.append('name', `${primaryVoiceName}_clone`);
@@ -371,6 +372,8 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
       // 2. Clone the secondary voice into Cartesia
 
+      console.log("CLONING SECONDARY VOICE INTO CARTESIA");
+
       // Prepare form data for secondary voice
       const secondaryCartesiaForm = new FormData();
       secondaryCartesiaForm.append('name', `${secondaryVoiceName}_clone`);
@@ -403,32 +406,120 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       }
 
       // 3. mix the voices together, using the ids. Returns an embedding
+      // Mix the primary and secondary Cartesia voices together by calling the Cartesia /voices/mix API endpoint
+
+      const mixUrl = `${CARTESIA_API_BASE}/voices/mix`;
+      console.log("MIXING VOICES IN CARTESIA", primaryCartesiaVoiceId," AND ", secondaryCartesiaVoiceId);
+
+      // Prepare the weights using the same ratios as for blending
+      const voicesToMix = [
+        {
+          id: primaryCartesiaVoiceId,
+          weight: primaryRatio
+        },
+        {
+          id: secondaryCartesiaVoiceId,
+          weight: secondaryRatio
+        }
+      ];
+
+      const mixOptions = {
+        method: 'POST',
+        headers: {
+          'Cartesia-Version': CARTESIA_VERSION,
+          'X-API-Key': CARTESIA_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ voices: voicesToMix })
+      };
+
+      let mixVoiceEmbedding;
+      try {
+        const response = await fetch(mixUrl, mixOptions);
+        const data = await response.json();
+        console.log("Mix voices Cartesia response:", data);
+        if (!response.ok) throw new Error(data?.message || "Failed to mix voices in Cartesia");
+        mixVoiceEmbedding = data.embedding; 
+        if (!mixVoiceEmbedding) throw new Error("No mix embedding returned for Cartesia mix.");
+      } catch (error) {
+        console.error("Error mixing voices in Cartesia:", error);
+        throw error;
+      }
       
       // 4. creat a new voice from the embedding
 
-      // 5. synthesize speech for the input text using the new voice
+      console.log("CREATING NEW VOICE IN CARTESIA");
 
-      const url = `${CARTESIA_API_BASE}/voices/mix`;
-        
-      const options = {
-        method: 'POST',
-        headers: {
+      // Create a new voice in Cartesia using the embedding from the mix step
+      let newCartesiaVoiceId;
+      try {
+        const createVoiceUrl = `${CARTESIA_API_BASE}/voices`;
+        const createVoiceOptions = {
+          method: 'POST',
+          headers: {
             'Cartesia-Version': CARTESIA_VERSION,
             'X-API-Key': CARTESIA_API_KEY,
             'Content-Type': 'application/json'
-        },
-        body: '{"voices":[{"id":"<string>","weight":123}]}'
+          },
+          body: JSON.stringify({
+            embedding: mixVoiceEmbedding,
+            name: blendName,
+            description: `A blend of ${primaryVoiceName} (${Math.round(primaryRatio * 100)}%) and ${secondaryVoiceName} (${Math.round(secondaryRatio * 100)}%)`
+          })
         };
+        const createVoiceResp = await fetch(createVoiceUrl, createVoiceOptions);
+        const createVoiceData = await createVoiceResp.json();
+        console.log("Create blended voice Cartesia response:", createVoiceData);
+        if (!createVoiceResp.ok) throw new Error(createVoiceData?.message || "Failed to create blended Cartesia voice");
+        newCartesiaVoiceId = createVoiceData.id;
+        if (!newCartesiaVoiceId) throw new Error("No voice_id returned for blended Cartesia voice creation.");
+      } catch (error) {
+        console.error("Error creating blended Cartesia voice:", error);
+        throw error;
+      }
 
-        
+      console.log("SUCCESFULLY CREATED NEW VOICE IN CARTESIA", newCartesiaVoiceId);
+      // 5. synthesize speech for the input text using the new voice
+
+      // Use Cartesia's TTS endpoint to synthesize speech from the input text using the new blended voice
+      const ttsUrl = `${CARTESIA_API_BASE}/tts/bytes`;
+      const ttsOptions = {
+        method: 'POST',
+        headers: {
+          'Cartesia-Version': CARTESIA_VERSION,
+          'X-API-Key': CARTESIA_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model_id: "sonic-3-2025-10-27",
+          transcript: text,
+          voice: {
+            mode: "id",
+            id: newCartesiaVoiceId,
+          },
+          language: "en",
+          output_format: {
+            container: "wav",
+            encoding: "pcm_f32le",
+            sample_rate: 22050,
+            bit_rate: 256
+          }
+        })
+      };
       try {
-        const response = await fetch(url, options);
-            const data = await response.json();
-            console.log(data);
-        } catch (error) {
-            console.error(error);
+        const ttsResponse = await fetch(ttsUrl, ttsOptions);
+        if (!ttsResponse.ok) {
+          const errorText = await ttsResponse.text();
+          throw new Error(`Cartesia TTS failed: ${ttsResponse.statusText} - ${errorText}`);
         }
-
+        // TTS returns raw audio bytes, wrap as blob and create object URL
+        const ttsAudioBlob = await ttsResponse.blob();
+        audioUrl = URL.createObjectURL(ttsAudioBlob);
+      } catch (error) {
+        console.error("Error synthesizing blended speech via Cartesia TTS:", error);
+        throw error;
+      }
+      console.log("SUCCESFULLY SYNTHESIZED SPEECH FOR BLENDED CARTESIA VOICE");
 
 
       break;

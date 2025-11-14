@@ -146,7 +146,10 @@ function VoiceBlender() {
         <button
           type="button"
           className={`blend-method-btn${blendMethod === "ivc" ? " active" : ""}`}
-          onClick={() => setBlendMethod("ivc")}
+          onClick={() => {
+            setBlendMethod("ivc");
+            setBlendPosition({ x: 0.5, y: 0.5 });
+        }}
           disabled={loading}
         >
           New Voice via IVC
@@ -165,12 +168,12 @@ function VoiceBlender() {
       <div className="blend-control">
         <h2>Blend Control</h2>
         <p className="blend-info">
-          Drag the handle to adjust the blend ratio between the two voices
+          Drag the handle to adjust the blend ratio between the two voices. For IVC, the handle is fixed at 50%.
         </p>
         <TwoDSlider
           position={blendPosition}
           onChange={handleSliderChange}
-          disabled={loading}
+          disabled={loading || blendMethod === "ivc"}
         />
         <div className="blend-values">
           <div>Voice 1: {Math.round((1 - blendPosition.x) * 100)}%</div>
