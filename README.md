@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# voice-blender
-Blending two voices together, using ElevenLabs and Cartesia
-=======
 # ElevenLabs Voice Blender
 
 A React-based UI for blending multiple voices using the ElevenLabs API. Select two voices and use the interactive 2D slider to control the blend ratio.
@@ -72,4 +68,3 @@ npm run build
 
 The built files will be in the `dist` directory.
 
->>>>>>> 7dc9388 (first three methods of ElevenLabs working)
