@@ -17,6 +17,8 @@ function VoiceBlender() {
   const [secondarySampleUrl, setSecondarySampleUrl] = useState(null)
   const [blendMethod, setBlendMethod] = useState("speech2speech")
   const [showSpectrogram, setShowSpectrogram] = useState(false)
+  const [primaryMCD, setPrimaryMCD] = useState(null)
+  const [secondaryMCD, setSecondaryMCD] = useState(null)
   // Mapping of voice_id to voice name for quick lookup
   const voiceIdToName = voices.reduce((map, voice) => {
     map[voice.voice_id] = voice.name
@@ -65,7 +67,7 @@ function VoiceBlender() {
     try {
       setLoading(true)
       setError(null)
-      const result = await blendVoices(selectedVoices, blendPosition, text, blendMethod, voiceIdToName)
+      const result = await blendVoices(selectedVoices, blendPosition, text, blendMethod, voiceIdToName, primaryMCD, secondaryMCD)
       if (result.audioUrl) {
         setAudioUrl(result.audioUrl)
         // Set primary and secondary sample URLs if available
@@ -75,6 +77,8 @@ function VoiceBlender() {
         if (result.secondarySampleUrl) {
           setSecondarySampleUrl(result.secondarySampleUrl)
         }
+        setPrimaryMCD(result.primaryMCD)
+        setSecondaryMCD(result.secondaryMCD)
       } else {
         setError('Blending completed but no audio URL returned')
       }
@@ -128,14 +132,14 @@ function VoiceBlender() {
       </div>
       <div className="blend-method-section">
         <h2>Blend Method</h2>
-        <div className="blend-method-toggle">
+        <div className="view-toggle">
         <button
           type="button"
           className={`blend-method-btn${blendMethod === "speech2speech" ? " active" : ""}`}
           onClick={() => setBlendMethod("speech2speech")}
           disabled={loading}
         >
-          Speech-to-Speech
+          11Labs: Speech
         </button>
         <button
           type="button"
@@ -143,7 +147,7 @@ function VoiceBlender() {
           onClick={() => setBlendMethod("text")}
           disabled={loading}
         >
-          New Voice via Text
+          11Labs: Text
         </button>
         <button
           type="button"
@@ -154,7 +158,7 @@ function VoiceBlender() {
         }}
           disabled={loading}
         >
-          New Voice via IVC
+          11Labs: IVC
         </button>
         <button
           type="button"
@@ -261,6 +265,15 @@ function VoiceBlender() {
           )}
         </div>
       )}
+      {
+        showSpectrogram && primaryMCD !== null && secondaryMCD !== null && (
+          <div className="mcd-values">
+            <div><b>Primary MCD:</b> {Math.round(primaryMCD)}</div>
+            <div><b>Secondary MCD:</b> {Math.round(secondaryMCD)}</div>
+            <div><b>Abs Difference:</b> {Math.round(Math.abs(primaryMCD - secondaryMCD))}</div>
+          </div>
+        )
+      }
     </div>
   )
 }

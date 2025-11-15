@@ -145,6 +145,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   // 4. Blend the voices by changing the primary voice to sound XX% like the secondary voice
 
   let audioUrl;
+  let blendedAudioBlob; 
   
   switch (blendMethod) {
     case 'speech2speech':
@@ -175,8 +176,9 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
       // The speech-to-speech endpoint returns audio directly, not JSON
       // Convert the blended audio response to a blob and create object URL
-      const blendedAudioBlob = await blendResponse.blob()
-      audioUrl = URL.createObjectURL(blendedAudioBlob)
+      const speech2speechAudioBlob = await blendResponse.blob()
+      audioUrl = URL.createObjectURL(speech2speechAudioBlob)
+      blendedAudioBlob = speech2speechAudioBlob;
 
       break;
 
@@ -256,6 +258,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       const ttsAudioBlob = await ttsResponse.blob()
       audioUrl = URL.createObjectURL(ttsAudioBlob)
 
+      blendedAudioBlob = ttsAudioBlob;
       break;
 
     case 'ivc':
@@ -330,6 +333,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
       const ivcAudioBlob = await ivcTTSResp.blob();
       audioUrl = URL.createObjectURL(ivcAudioBlob);
+      blendedAudioBlob = ivcAudioBlob;
       break;
 
     case 'cartesia':
@@ -515,13 +519,14 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         // TTS returns raw audio bytes, wrap as blob and create object URL
         const ttsAudioBlob = await ttsResponse.blob();
         audioUrl = URL.createObjectURL(ttsAudioBlob);
+        blendedAudioBlob = ttsAudioBlob;
       } catch (error) {
         console.error("Error synthesizing blended speech via Cartesia TTS:", error);
         throw error;
       }
       console.log("SUCCESFULLY SYNTHESIZED SPEECH FOR BLENDED CARTESIA VOICE");
 
-
+      
       break;
 
     default:
@@ -529,22 +534,52 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   }
   
   
+  //Lastly, we want to compare the blended audio with the primary and secondary for analysis
+  let primaryMCD = null;
+  let secondaryMCD = null;
+  if (blendedAudioBlob) {
+    const blendedAudioFile = new File([blendedAudioBlob], "blended.wav", { type: blendedAudioBlob.type })
 
+    //compare the MCD (Mel Cepstral Distortion) of the blended audio with the primary
+    const formDataPrimary = new FormData();
+    formDataPrimary.append("voice_ref", primarySampleAudioFile);  
+    formDataPrimary.append("voice_test", blendedAudioFile); 
+    console.log("  Primary audio: ", primarySampleAudioFile.name);
 
-
-  //option 2: create a new voice via text
-//   https://api.elevenlabs.io/v1/text-to-voice/design
-
-//option 3: create a new voice via IVC voice-design; requires files to be uploaded
-// https://api.elevenlabs.io/v1/voices/add
-
+    const primaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
+        method: "POST",
+        body: formDataPrimary,
+    });
   
+    const primaryBlendComparisonData = await primaryBlendComparisonResponse.json();
+
+    //... and the MCD for the blended audio with the secondary
+    const formDataSecondary = new FormData();
+    formDataSecondary.append("voice_ref", secondarySampleAudioFile);   
+    formDataSecondary.append("voice_test", blendedAudioFile);
+
+    console.log("  Secondary audio: ", secondarySampleAudioFile.name);
+    console.log("  Blended audio: ", blendedAudioFile.name);
+
+    const secondaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
+        method: "POST",
+        body: formDataSecondary,
+    });
+    const secondaryBlendComparisonData = await secondaryBlendComparisonResponse.json();
+
+    primaryMCD = primaryBlendComparisonData.mcd;
+    secondaryMCD = secondaryBlendComparisonData.mcd;
+  }
+  
+
   return {
     audioUrl,
     primarySampleUrl, // URL to listen to the primary voice sample (before blending)
     secondarySampleUrl, // URL to listen to the secondary voice sample
     voice1Ratio,
     voice2Ratio,
+    primaryMCD,
+    secondaryMCD
   }
 }
 
