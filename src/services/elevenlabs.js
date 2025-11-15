@@ -264,7 +264,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
     case 'ivc':
 
       // Create a new voice via IVC by uploading both primary and secondary sample audio
-      console.log("IVC BLENDING")
 
       // 1. Prepare FormData with both samples
       const formData = new FormData();
@@ -293,8 +292,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         },
         body: formData,
       });
-
-      console.log("SUCCESFULLY UPLOADED VOICE SAMPLES", formData);
 
       if (!addVoiceResp.ok) {
         const errorText = await addVoiceResp.text();
@@ -365,7 +362,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       try {
         const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, primaryCloneOptions);
         const data = await response.json();
-        console.log("Cartesia primary clone response:", data);
         if (!response.ok) throw new Error(data?.message || "Failed to clone primary voice in Cartesia");
         primaryCartesiaVoiceId = data.id;
         if (!primaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia primary clone.");
@@ -400,7 +396,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       try {
         const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, secondaryCloneOptions);
         const data = await response.json();
-        console.log("Cartesia secondary clone response:", data);
         if (!response.ok) throw new Error(data?.message || "Failed to clone secondary voice in Cartesia");
         secondaryCartesiaVoiceId = data.id;
         if (!secondaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia secondary clone.");
@@ -413,7 +408,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       // Mix the primary and secondary Cartesia voices together by calling the Cartesia /voices/mix API endpoint
 
       const mixUrl = `${CARTESIA_API_BASE}/voices/mix`;
-      console.log("MIXING VOICES IN CARTESIA", primaryCartesiaVoiceId," AND ", secondaryCartesiaVoiceId);
+      console.log("MIXING VOICES IN CARTESIA");
 
       // Prepare the weights using the same ratios as for blending
       const voicesToMix = [
@@ -441,7 +436,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       try {
         const response = await fetch(mixUrl, mixOptions);
         const data = await response.json();
-        console.log("Mix voices Cartesia response:", data);
         if (!response.ok) throw new Error(data?.message || "Failed to mix voices in Cartesia");
         mixVoiceEmbedding = data.embedding; 
         if (!mixVoiceEmbedding) throw new Error("No mix embedding returned for Cartesia mix.");
@@ -452,7 +446,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       
       // 4. creat a new voice from the embedding
 
-      console.log("CREATING NEW VOICE IN CARTESIA");
+      console.log("CREATING NEW VOICE IN CARTESIA FROM MIXED EMBEDDING");
 
       // Create a new voice in Cartesia using the embedding from the mix step
       let newCartesiaVoiceId;
@@ -473,7 +467,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         };
         const createVoiceResp = await fetch(createVoiceUrl, createVoiceOptions);
         const createVoiceData = await createVoiceResp.json();
-        console.log("Create blended voice Cartesia response:", createVoiceData);
         if (!createVoiceResp.ok) throw new Error(createVoiceData?.message || "Failed to create blended Cartesia voice");
         newCartesiaVoiceId = createVoiceData.id;
         if (!newCartesiaVoiceId) throw new Error("No voice_id returned for blended Cartesia voice creation.");
@@ -482,7 +475,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         throw error;
       }
 
-      console.log("SUCCESFULLY CREATED NEW VOICE IN CARTESIA", newCartesiaVoiceId);
       // 5. synthesize speech for the input text using the new voice
 
       // Use Cartesia's TTS endpoint to synthesize speech from the input text using the new blended voice
@@ -544,7 +536,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
     const formDataPrimary = new FormData();
     formDataPrimary.append("voice_ref", primarySampleAudioFile);  
     formDataPrimary.append("voice_test", blendedAudioFile); 
-    console.log("  Primary audio: ", primarySampleAudioFile.name);
 
     const primaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
         method: "POST",
@@ -557,9 +548,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
     const formDataSecondary = new FormData();
     formDataSecondary.append("voice_ref", secondarySampleAudioFile);   
     formDataSecondary.append("voice_test", blendedAudioFile);
-
-    console.log("  Secondary audio: ", secondarySampleAudioFile.name);
-    console.log("  Blended audio: ", blendedAudioFile.name);
 
     const secondaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
         method: "POST",
@@ -576,10 +564,8 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
     audioUrl,
     primarySampleUrl, // URL to listen to the primary voice sample (before blending)
     secondarySampleUrl, // URL to listen to the secondary voice sample
-    voice1Ratio,
-    voice2Ratio,
-    primaryMCD,
-    secondaryMCD
+    primaryMCD, // Mel Cepstral Distortion between blended audio and primary
+    secondaryMCD // Mel Cepstral Distortion between blended audio and secondary
   }
 }
 
