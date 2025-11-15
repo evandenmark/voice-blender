@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getVoices, blendVoices } from '../services/elevenlabs'
 import TwoDSlider from './TwoDSlider'
+import SpectrogramPlayer from "react-audio-spectrogram-player";
 import './VoiceBlender.css'
 
 function VoiceBlender() {
@@ -15,6 +16,7 @@ function VoiceBlender() {
   const [primarySampleUrl, setPrimarySampleUrl] = useState(null)
   const [secondarySampleUrl, setSecondarySampleUrl] = useState(null)
   const [blendMethod, setBlendMethod] = useState("speech2speech")
+  const [showSpectrogram, setShowSpectrogram] = useState(false)
   // Mapping of voice_id to voice name for quick lookup
   const voiceIdToName = voices.reduce((map, voice) => {
     map[voice.voice_id] = voice.name
@@ -193,30 +195,70 @@ function VoiceBlender() {
 
       {error && <div className="error">{error}</div>}
 
+      {(primarySampleUrl || secondarySampleUrl || audioUrl) && (
+        <div className="view-toggle">
+          <button
+            type="button"
+            className={`view-toggle-btn${!showSpectrogram ? " active" : ""}`}
+            onClick={() => setShowSpectrogram(false)}
+          >
+            Audio Player
+          </button>
+          <button
+            type="button"
+            className={`view-toggle-btn${showSpectrogram ? " active" : ""}`}
+            onClick={() => setShowSpectrogram(true)}
+          >
+            Spectrogram
+          </button>
+        </div>
+      )}
+
       {primarySampleUrl && (
         <div className="audio-player">
           <h3>Primary Voice</h3>
-          <audio controls src={primarySampleUrl} className="audio-element">
-            Your browser does not support the audio element.
-          </audio>
+          {showSpectrogram ? (
+            <SpectrogramPlayer
+              src={primarySampleUrl}
+              navigator={true}
+            />
+          ) : (
+            <audio controls src={primarySampleUrl} className="audio-element">
+              Your browser does not support the audio element.
+            </audio>
+          )}
         </div>
       )}
 
       {secondarySampleUrl && (
         <div className="audio-player">
           <h3>Secondary Voice</h3>
-          <audio controls src={secondarySampleUrl} className="audio-element">
-            Your browser does not support the audio element.
-          </audio>
+          {showSpectrogram ? (
+            <SpectrogramPlayer
+              src={secondarySampleUrl}
+              navigator={true}
+            />
+          ) : (
+            <audio controls src={secondarySampleUrl} className="audio-element">
+              Your browser does not support the audio element.
+            </audio>
+          )}
         </div>
       )}
 
       {audioUrl && (
         <div className="audio-player">
           <h3>Blended Voice Result</h3>
-          <audio controls src={audioUrl} className="audio-element">
-            Your browser does not support the audio element.
-          </audio>
+          {showSpectrogram ? (
+            <SpectrogramPlayer
+              src={audioUrl}
+              navigator={true}
+            />
+          ) : (
+            <audio controls src={audioUrl} className="audio-element">
+              Your browser does not support the audio element.
+            </audio>
+          )}
         </div>
       )}
     </div>
