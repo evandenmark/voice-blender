@@ -1,4 +1,4 @@
-# ElevenLabs Voice Blender
+# ElevenLabs & Cartesia Voice Blender
 
 A React-based UI for blending multiple voices using the ElevenLabs API. Select two voices and use the interactive 2D slider to control the blend ratio.
 
@@ -10,7 +10,7 @@ A detailed review of this experiment can be found on [Substack](https://evandenm
 ## Features
 
 - Select from available ElevenLabs voices
-- Interactive 2D draggable slider for voice blending control
+- Draggable slider for voice blending control
 - Real-time audio generation and playback
 - Audio Analysis of blended results
 
