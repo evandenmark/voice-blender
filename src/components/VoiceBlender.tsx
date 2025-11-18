@@ -1,60 +1,62 @@
 import { useState, useEffect } from 'react'
 import { getVoices, blendVoices } from '../services/elevenlabs'
 import TwoDSlider from './TwoDSlider'
-import SpectrogramPlayer from "react-audio-spectrogram-player";
+import SpectrogramPlayer from "react-audio-spectrogram-player"
 import './VoiceBlender.css'
+import type { Voice, BlendPosition, BlendMethod } from '../types'
 
-function VoiceBlender() {
-  const [voices, setVoices] = useState([])
-  const [selectedVoices, setSelectedVoices] = useState([null, null])
-  const [selectedVoiceNames, setSelectedVoiceNames] = useState(['', ''])
-  const [blendPosition, setBlendPosition] = useState({ x: 0.5, y: 0.5 })
-  const [text, setText] = useState('Hello, this is a blended voice demonstration.')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [audioUrl, setAudioUrl] = useState(null)
-  const [primarySampleUrl, setPrimarySampleUrl] = useState(null)
-  const [secondarySampleUrl, setSecondarySampleUrl] = useState(null)
-  const [blendMethod, setBlendMethod] = useState("speech2speech")
-  const [showSpectrogram, setShowSpectrogram] = useState(false)
-  const [primaryMCD, setPrimaryMCD] = useState(null)
-  const [secondaryMCD, setSecondaryMCD] = useState(null)
+function VoiceBlender(): JSX.Element {
+  const [voices, setVoices] = useState<Voice[]>([])
+  const [selectedVoices, setSelectedVoices] = useState<[string | null, string | null]>([null, null])
+  const [selectedVoiceNames, setSelectedVoiceNames] = useState<[string, string]>(['', ''])
+  const [blendPosition, setBlendPosition] = useState<BlendPosition>({ x: 0.5, y: 0.5 })
+  const [text, setText] = useState<string>('Hello, this is a blended voice demonstration.')
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [primarySampleUrl, setPrimarySampleUrl] = useState<string | null>(null)
+  const [secondarySampleUrl, setSecondarySampleUrl] = useState<string | null>(null)
+  const [blendMethod, setBlendMethod] = useState<BlendMethod>('speech2speech')
+  const [showSpectrogram, setShowSpectrogram] = useState<boolean>(false)
+  const [primaryMCD, setPrimaryMCD] = useState<number | null>(null)
+  const [secondaryMCD, setSecondaryMCD] = useState<number | null>(null)
+
   // Mapping of voice_id to voice name for quick lookup
-  const voiceIdToName = voices.reduce((map, voice) => {
+  const voiceIdToName = voices.reduce<Record<string, string>>((map, voice) => {
     map[voice.voice_id] = voice.name
     return map
   }, {})
 
-  //load voices immediately
   useEffect(() => {
     loadVoices()
   }, [])
 
-  const loadVoices = async () => {
+  const loadVoices = async (): Promise<void> => {
     try {
       setLoading(true)
       setError(null)
       const voiceList = await getVoices()
       setVoices(voiceList)
     } catch (err) {
-      setError(`Failed to load voices: ${err.message}`)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError(`Failed to load voices: ${errorMessage}`)
       console.error('Error loading voices:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleVoiceSelect = (index, voiceId) => {
-    const newSelected = [...selectedVoices]
+  const handleVoiceSelect = (index: number, voiceId: string): void => {
+    const newSelected: [string | null, string | null] = [...selectedVoices]
     newSelected[index] = voiceId
     setSelectedVoices(newSelected)
 
-    const newSelectedVoiceNames = [...selectedVoiceNames]
+    const newSelectedVoiceNames: [string, string] = [...selectedVoiceNames]
     newSelectedVoiceNames[index] = voiceIdToName[voiceId] || 'Unknown Voice'
     setSelectedVoiceNames(newSelectedVoiceNames)
   }
 
-  const handleBlend = async () => {
+  const handleBlend = async (): Promise<void> => {
     if (!selectedVoices[0] || !selectedVoices[1]) {
       setError('Please select two voices')
       return
@@ -68,10 +70,15 @@ function VoiceBlender() {
     try {
       setLoading(true)
       setError(null)
-      const result = await blendVoices(selectedVoices, blendPosition, text, blendMethod, voiceIdToName, primaryMCD, secondaryMCD)
+      const result = await blendVoices(
+        [selectedVoices[0], selectedVoices[1]], 
+        blendPosition, 
+        text, 
+        blendMethod, 
+        voiceIdToName
+      )
       if (result.audioUrl) {
         setAudioUrl(result.audioUrl)
-        // Set primary and secondary sample URLs if available
         if (result.primarySampleUrl) {
           setPrimarySampleUrl(result.primarySampleUrl)
         }
@@ -84,14 +91,15 @@ function VoiceBlender() {
         setError('Blending completed but no audio URL returned')
       }
     } catch (err) {
-      setError(`Failed to blend voices: ${err.message}`)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError(`Failed to blend voices: ${errorMessage}`)
       console.error('Error blending voices:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSliderChange = (position) => {
+  const handleSliderChange = (position: BlendPosition): void => {
     setBlendPosition(position)
   }
 
@@ -134,41 +142,41 @@ function VoiceBlender() {
       <div className="blend-method-section">
         <h2>Blend Method</h2>
         <div className="view-toggle">
-        <button
-          type="button"
-          className={`blend-method-btn${blendMethod === "speech2speech" ? " active" : ""}`}
-          onClick={() => setBlendMethod("speech2speech")}
-          disabled={loading}
-        >
-          11Labs: Speech
-        </button>
-        <button
-          type="button"
-          className={`blend-method-btn${blendMethod === "text" ? " active" : ""}`}
-          onClick={() => setBlendMethod("text")}
-          disabled={loading}
-        >
-          11Labs: Text
-        </button>
-        <button
-          type="button"
-          className={`blend-method-btn${blendMethod === "ivc" ? " active" : ""}`}
-          onClick={() => {
-            setBlendMethod("ivc");
-            setBlendPosition({ x: 0.5, y: 0.5 });
-        }}
-          disabled={loading}
-        >
-          11Labs: IVC
-        </button>
-        <button
-          type="button"
-          className={`blend-method-btn${blendMethod === "cartesia" ? " active" : ""}`}
-          onClick={() => setBlendMethod("cartesia")}
-          disabled={loading}
-        >
-          Cartesia
-        </button>
+          <button
+            type="button"
+            className={`blend-method-btn${blendMethod === "speech2speech" ? " active" : ""}`}
+            onClick={() => setBlendMethod("speech2speech")}
+            disabled={loading}
+          >
+            11Labs: Speech
+          </button>
+          <button
+            type="button"
+            className={`blend-method-btn${blendMethod === "text" ? " active" : ""}`}
+            onClick={() => setBlendMethod("text")}
+            disabled={loading}
+          >
+            11Labs: Text
+          </button>
+          <button
+            type="button"
+            className={`blend-method-btn${blendMethod === "ivc" ? " active" : ""}`}
+            onClick={() => {
+              setBlendMethod("ivc")
+              setBlendPosition({ x: 0.5, y: 0.5 })
+            }}
+            disabled={loading}
+          >
+            11Labs: IVC
+          </button>
+          <button
+            type="button"
+            className={`blend-method-btn${blendMethod === "cartesia" ? " active" : ""}`}
+            onClick={() => setBlendMethod("cartesia")}
+            disabled={loading}
+          >
+            Cartesia
+          </button>
         </div>
       </div>
 

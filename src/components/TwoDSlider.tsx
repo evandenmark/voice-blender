@@ -1,44 +1,50 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import './TwoDSlider.css'
+import type { BlendPosition } from '../types'
 
-function TwoDSlider({ position, onChange, disabled = false }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const containerRef = useRef(null)
+interface TwoDSliderProps {
+  position: BlendPosition
+  onChange: (position: BlendPosition) => void
+  disabled?: boolean
+}
 
-  const handleMouseDown = (e) => {
-    if (disabled) return
-    e.preventDefault() // Prevent text selection and other default behaviors
-    setIsDragging(true)
-    updatePosition(e)
-  }
+function TwoDSlider({ position, onChange, disabled = false }: TwoDSliderProps): JSX.Element {
+  const [isDragging, setIsDragging] = useState<boolean>(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const handleHandleMouseDown = (e) => {
-    if (disabled) return
-    e.preventDefault()
-    e.stopPropagation() // Prevent container from also handling this
-    setIsDragging(true)
-    updatePosition(e)
-  }
-
-  const handleMouseMove = (e) => {
-    if (!isDragging || disabled) return
-    updatePosition(e)
-  }
-
-  const handleMouseUp = () => {
-    setIsDragging(false)
-  }
-
-  const updatePosition = (e) => {
+  const updatePosition = useCallback((e: MouseEvent | React.MouseEvent): void => {
     if (!containerRef.current) return
 
     const rect = containerRef.current.getBoundingClientRect()
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-    // Keep y at 0.5 (middle) for 1D slider
     const y = 0.5
 
     onChange({ x, y })
-  }
+  }, [onChange])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>): void => {
+    if (disabled) return
+    e.preventDefault()
+    setIsDragging(true)
+    updatePosition(e)
+  }, [disabled, updatePosition])
+
+  const handleHandleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>): void => {
+    if (disabled) return
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+    updatePosition(e)
+  }, [disabled, updatePosition])
+
+  const handleMouseMove = useCallback((e: MouseEvent): void => {
+    if (!isDragging || disabled) return
+    updatePosition(e)
+  }, [isDragging, disabled, updatePosition])
+
+  const handleMouseUp = useCallback((): void => {
+    setIsDragging(false)
+  }, [])
 
   useEffect(() => {
     if (isDragging) {
@@ -49,9 +55,9 @@ function TwoDSlider({ position, onChange, disabled = false }) {
         window.removeEventListener('mouseup', handleMouseUp)
       }
     }
-  }, [isDragging])
+  }, [isDragging, handleMouseMove, handleMouseUp])
 
-  const handleStyle = {
+  const handleStyle: React.CSSProperties = {
     left: `${position.x * 100}%`,
   }
 

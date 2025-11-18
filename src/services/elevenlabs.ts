@@ -1,9 +1,23 @@
-const API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY
+import type { 
+  Voice, 
+  BlendPosition, 
+  BlendMethod, 
+  BlendResult, 
+  VoiceSettings,
+  ElevenLabsVoiceResponse,
+  MCDResponse,
+  CartesiaCloneResponse,
+  CartesiaMixResponse,
+  CartesiaVoiceResponse,
+  ElevenLabsDesignResponse,
+  ElevenLabsAddVoiceResponse
+} from '../types'
+
+const API_KEY: string | undefined = import.meta.env.VITE_ELEVENLABS_API_KEY as string | undefined
 const API_BASE = 'https://api.elevenlabs.io/v1'
 const CARTESIA_API_BASE = 'https://api.cartesia.ai'
-const CARTESIA_API_KEY = import.meta.env.VITE_CARTESIA_API_KEY
-const CARTESIA_VERSION = import.meta.env.VITE_CARTESIA_VERSION
-
+const CARTESIA_API_KEY: string | undefined = import.meta.env.VITE_CARTESIA_API_KEY as string | undefined
+const CARTESIA_VERSION: string | undefined = import.meta.env.VITE_CARTESIA_VERSION as string | undefined
 
 if (!API_KEY) {
   console.warn('VITE_ELEVENLABS_API_KEY is not set. Please add it to your .env file.')
@@ -12,7 +26,7 @@ if (!API_KEY) {
 /**
  * Fetch all available voices from ElevenLabs
  */
-export async function getVoices() {
+export async function getVoices(): Promise<Voice[]> {
   if (!API_KEY) {
     throw new Error('API key not configured')
   }
@@ -27,7 +41,7 @@ export async function getVoices() {
     throw new Error(`Failed to fetch voices: ${response.statusText}`)
   }
 
-  const data = await response.json()
+  const data: ElevenLabsVoiceResponse = await response.json()
   return data.voices || []
 }
 
@@ -36,7 +50,13 @@ export async function getVoices() {
  * Note: ElevenLabs doesn't have a direct voice blending endpoint,
  * so we'll use voice cloning/remixing or generate audio with mixed characteristics
  */
-export async function blendVoices(voiceIds, blendPosition, text, blendMethod, voiceMapping) {
+export async function blendVoices(
+  voiceIds: [string, string],
+  blendPosition: BlendPosition,
+  text: string,
+  blendMethod: BlendMethod,
+  voiceMapping: Record<string, string>
+): Promise<BlendResult> {
   if (!API_KEY) {
     throw new Error('API key not configured')
   }
@@ -55,7 +75,12 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
   // Pick primary and secondary voices based on which has the higher ratio
   const [voiceA, voiceB] = voiceIds
-  let primaryVoiceId, secondaryVoiceId, primaryRatio, secondaryRatio, primaryVoiceName, secondaryVoiceName
+  let primaryVoiceId: string
+  let secondaryVoiceId: string
+  let primaryRatio: number
+  let secondaryRatio: number
+  let primaryVoiceName: string
+  let secondaryVoiceName: string
 
   if (voice1Ratio >= voice2Ratio) {
     primaryVoiceId = voiceA
@@ -68,8 +93,13 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
     primaryRatio = voice2Ratio
     secondaryRatio = voice1Ratio
   }
-  primaryVoiceName = voiceMapping[primaryVoiceId]
-  secondaryVoiceName = voiceMapping[secondaryVoiceId]
+  primaryVoiceName = voiceMapping[primaryVoiceId] || 'Unknown'
+  secondaryVoiceName = voiceMapping[secondaryVoiceId] || 'Unknown'
+
+  const voiceSettings: VoiceSettings = {
+    stability: 0.5,
+    similarity_boost: 1.0,
+  }
 
   // Get a voice sample from the PRIMARY voice (before blending)
   const primarySampleResp = await fetch(
@@ -83,10 +113,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       body: JSON.stringify({
         text,
         model_id: 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 1.0,
-        },
+        voice_settings: voiceSettings,
       }),
     }
   )
@@ -98,11 +125,11 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
   const primarySampleAudio = await primarySampleResp.blob()
   const primarySampleAudioFile = new File([primarySampleAudio], "primary_sample.wav", { type: primarySampleAudio.type })
-  
+
   // Create a URL for the primary sample so it can be played
   const primarySampleUrl = URL.createObjectURL(primarySampleAudio)
 
-  // 2. Get a voice sample from the SECONDARY voice
+  // Get a voice sample from the SECONDARY voice
   const secondarySampleResp = await fetch(
     `${API_BASE}/text-to-speech/${secondaryVoiceId}`,
     {
@@ -114,10 +141,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       body: JSON.stringify({
         text,
         model_id: 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 1.0,
-        },
+        voice_settings: voiceSettings,
       }),
     }
   )
@@ -129,26 +153,24 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
   const secondarySampleAudio = await secondarySampleResp.blob()
   const secondarySampleAudioFile = new File([secondarySampleAudio], "secondary_sample.wav", { type: secondarySampleAudio.type })
-  
+
   // Create a URL for the secondary sample so it can be played
   const secondarySampleUrl = URL.createObjectURL(secondarySampleAudio)
 
-  // Format blend variables 
-
+  // Format blend variables
   const blendPercent = Math.round(secondaryRatio * 100)
-  const blendName = `Blend_${primaryVoiceName}${Math.round(primaryRatio*100)}_${secondaryVoiceName}${Math.round(secondaryRatio*100)}`
-  
+  const blendName = `Blend_${primaryVoiceName}${Math.round(primaryRatio * 100)}_${secondaryVoiceName}${Math.round(secondaryRatio * 100)}`
+
   // THE FOUR BLENDING ALGORITHMS
 
-  let audioUrl;
-  let blendedAudioBlob; 
-  
-  switch (blendMethod) {
-    case 'speech2speech':
-      
-      // OPTION 1: USE SPEECH-TO-SPEECH remixing. Make Voice 1 sound more like voice 2 via speech. Primarily transfer prosody of voice 2 onto voice 1.  
+  let audioUrl: string
+  let blendedAudioBlob: Blob
 
-      const designText = `Remix this voice to sound ${Math.round(primaryRatio*100)}% more like voice with id ${secondaryVoiceId}.`
+  switch (blendMethod) {
+    case 'speech2speech': {
+      // OPTION 1: USE SPEECH-TO-SPEECH remixing. Make Voice 1 sound more like voice 2 via speech. Primarily transfer prosody of voice 2 onto voice 1.
+
+      const designText = `Remix this voice to sound ${Math.round(primaryRatio * 100)}% more like voice with id ${secondaryVoiceId}.`
 
       const blendFormData = new FormData()
       blendFormData.append('audio', secondarySampleAudioFile)
@@ -158,11 +180,11 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       const blendResponse = await fetch(`${API_BASE}/speech-to-speech/${primaryVoiceId}`, {
         method: 'POST',
         headers: {
-            'xi-api-key': API_KEY,
-          },
-          body: blendFormData,
-        })
-      
+          'xi-api-key': API_KEY,
+        },
+        body: blendFormData,
+      })
+
       if (!blendResponse.ok) {
         const errorText = await blendResponse.text()
         throw new Error(`Failed to create blended voice: ${blendResponse.statusText} - ${errorText}`)
@@ -172,14 +194,12 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       // Convert the blended audio response to a blob and create object URL
       const speech2speechAudioBlob = await blendResponse.blob()
       audioUrl = URL.createObjectURL(speech2speechAudioBlob)
-      blendedAudioBlob = speech2speechAudioBlob;
+      blendedAudioBlob = speech2speechAudioBlob
+      break
+    }
 
-      break;
-
-
-    case 'text':
-    
-      // OPTION 2: Create an entirely new voice via text description 
+    case 'text': {
+      // OPTION 2: Create an entirely new voice via text description
 
       // first design a new voice
       const designResponse = await fetch(`${API_BASE}/text-to-voice/design`, {
@@ -190,7 +210,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         },
         body: JSON.stringify({
           name: blendName,
-          voice_description: `A voice that is ${Math.round(primaryRatio*100)}% like voice ID ${primaryVoiceId} and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
+          voice_description: `A voice that is ${Math.round(primaryRatio * 100)}% like voice ID ${primaryVoiceId} and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
           guidance_scale: 80,
           quality: 1, // I don't want any variability in the voice. I want it exactly as described
           auto_generate_text: true
@@ -203,13 +223,11 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       }
 
       //the design response will return a few voices. Arbitrarily pick the first one
-      
-      const designData = await designResponse.json();
-      const selectedVoice = designData.previews[0].generated_voice_id;
+      const designData: ElevenLabsDesignResponse = await designResponse.json()
+      const selectedVoice = designData.previews[0].generated_voice_id
 
       // then create a new voice
       const createVoiceResponse = await fetch(`${API_BASE}/text-to-voice`, {
-
         method: 'POST',
         headers: {
           'xi-api-key': API_KEY,
@@ -217,11 +235,11 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         },
         body: JSON.stringify({
           voice_name: blendName,
-          voice_description: `A voice that is ${Math.round(primaryRatio*100)}% like voice ID ${primaryVoiceId} 
+          voice_description: `A voice that is ${Math.round(primaryRatio * 100)}% like voice ID ${primaryVoiceId} 
                               and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
           generated_voice_id: selectedVoice,
         }),
-      });
+      })
 
       if (!createVoiceResponse.ok) {
         const errorText = await createVoiceResponse.text()
@@ -252,30 +270,29 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       // Get the audio as a blob, create its object URL
       const ttsAudioBlob = await ttsResponse.blob()
       audioUrl = URL.createObjectURL(ttsAudioBlob)
+      blendedAudioBlob = ttsAudioBlob
+      break
+    }
 
-      blendedAudioBlob = ttsAudioBlob;
-      break;
-
-    case 'ivc':
-
+    case 'ivc': {
       // Create a new voice via IVC by uploading both primary and secondary sample audio
 
       // Prepare FormData with both samples
-      const formData = new FormData();
+      const formData = new FormData()
       // Primary sample
-      formData.append('files', primarySampleAudio, 'primary_sample.wav');
+      formData.append('files', primarySampleAudio, 'primary_sample.wav')
       // Secondary sample (optional field can be used multiple times for multi-reference)
       if (secondarySampleAudio) {
-        formData.append('files', secondarySampleAudio, 'secondary_sample.wav');
+        formData.append('files', secondarySampleAudio, 'secondary_sample.wav')
       }
       // Name & description
-      formData.append('name', blendName);
+      formData.append('name', blendName)
       formData.append(
         'description',
-        `A blended voice generated from ${Math.round(voice1Ratio*100)}% ${primaryVoiceId}, ${Math.round(voice2Ratio*100)}% ${secondaryVoiceId}.`
-      );
+        `A blended voice generated from ${Math.round(voice1Ratio * 100)}% ${primaryVoiceId}, ${Math.round(voice2Ratio * 100)}% ${secondaryVoiceId}.`
+      )
       // The API expects 'labels' for custom grouping (optional)
-      formData.append('labels', JSON.stringify({ type: "ivc-blend", primary: primaryVoiceId, secondary: secondaryVoiceId }));
+      formData.append('labels', JSON.stringify({ type: "ivc-blend", primary: primaryVoiceId, secondary: secondaryVoiceId }))
 
       // Upload samples & register new voice
       const addVoiceResp = await fetch(`${API_BASE}/voices/add`, {
@@ -284,17 +301,17 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
           'xi-api-key': API_KEY,
         },
         body: formData,
-      });
+      })
 
       if (!addVoiceResp.ok) {
-        const errorText = await addVoiceResp.text();
-        throw new Error(`Failed to create new blended voice via IVC: ${addVoiceResp.statusText} - ${errorText}`);
+        const errorText = await addVoiceResp.text()
+        throw new Error(`Failed to create new blended voice via IVC: ${addVoiceResp.statusText} - ${errorText}`)
       }
 
-      const addVoiceData = await addVoiceResp.json();
-      const newVoiceId = addVoiceData.voice_id;
+      const addVoiceData: ElevenLabsAddVoiceResponse = await addVoiceResp.json()
+      const newVoiceId = addVoiceData.voice_id
       if (!newVoiceId) {
-        throw new Error('No voice_id returned after adding voice via IVC');
+        throw new Error('No voice_id returned after adding voice via IVC')
       }
 
       // Synthesize speech for the input text using the newly created voice
@@ -307,100 +324,100 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         body: JSON.stringify({
           text,
           model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 1.0,
-          }
+          voice_settings: voiceSettings
         }),
-      });
+      })
 
-      console.log("SUCCESFULLY SYNTHESIZED SPEECH FOR BLENDED IVC VOICE", newVoiceId);
+      console.log("SUCCESSFULLY SYNTHESIZED SPEECH FOR BLENDED IVC VOICE", newVoiceId)
 
       if (!ivcTTSResp.ok) {
-        const errorText = await ivcTTSResp.text();
-        throw new Error(`Failed to synthesize speech for blended IVC voice: ${ivcTTSResp.statusText} - ${errorText}`);
+        const errorText = await ivcTTSResp.text()
+        throw new Error(`Failed to synthesize speech for blended IVC voice: ${ivcTTSResp.statusText} - ${errorText}`)
       }
 
-      const ivcAudioBlob = await ivcTTSResp.blob();
-      audioUrl = URL.createObjectURL(ivcAudioBlob);
-      blendedAudioBlob = ivcAudioBlob;
-      break;
+      const ivcAudioBlob = await ivcTTSResp.blob()
+      audioUrl = URL.createObjectURL(ivcAudioBlob)
+      blendedAudioBlob = ivcAudioBlob
+      break
+    }
 
-    case 'cartesia':
+    case 'cartesia': {
+      if (!CARTESIA_API_KEY || !CARTESIA_VERSION) {
+        throw new Error('Cartesia API key or version not configured')
+      }
+
       // get the audio clip from ElevenLabs for primary and secondary voices
 
       // 1. Clone the primary voice into Cartesia
-
-      console.log("CLONING PRIMARY VOICE INTO CARTESIA");
+      console.log("CLONING PRIMARY VOICE INTO CARTESIA")
       // Prepare form data for primary voice
-      const primaryCartesiaForm = new FormData();
-      primaryCartesiaForm.append('name', `${primaryVoiceName}_clone`);
-      primaryCartesiaForm.append('description', `Clone of primary voice: ${primaryVoiceName}`);
-      primaryCartesiaForm.append('language', 'en');
-      primaryCartesiaForm.append('mode', 'similarity');
-      primaryCartesiaForm.append('enhance', 'false');
-      primaryCartesiaForm.append('clip', primarySampleAudioFile);
+      const primaryCartesiaForm = new FormData()
+      primaryCartesiaForm.append('name', `${primaryVoiceName}_clone`)
+      primaryCartesiaForm.append('description', `Clone of primary voice: ${primaryVoiceName}`)
+      primaryCartesiaForm.append('language', 'en')
+      primaryCartesiaForm.append('mode', 'similarity')
+      primaryCartesiaForm.append('enhance', 'false')
+      primaryCartesiaForm.append('clip', primarySampleAudioFile)
 
-      const primaryCloneOptions = {
+      const primaryCloneOptions: RequestInit = {
         method: 'POST',
         headers: {
-          'Cartesia-Version': CARTESIA_VERSION, //2025-04-16
+          'Cartesia-Version': CARTESIA_VERSION,
           'X-API-Key': CARTESIA_API_KEY
         },
         body: primaryCartesiaForm
-      };
+      }
 
-      let primaryCartesiaVoiceId;
+      let primaryCartesiaVoiceId: string
       try {
-        const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, primaryCloneOptions);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.message || "Failed to clone primary voice in Cartesia");
-        primaryCartesiaVoiceId = data.id;
-        if (!primaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia primary clone.");
+        const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, primaryCloneOptions)
+        const data: CartesiaCloneResponse = await response.json()
+        if (!response.ok) throw new Error(data?.message as string || "Failed to clone primary voice in Cartesia")
+        primaryCartesiaVoiceId = data.id
+        if (!primaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia primary clone.")
       } catch (error) {
-        console.error("Error cloning primary voice in Cartesia:", error);
-        throw error;
+        console.error("Error cloning primary voice in Cartesia:", error)
+        throw error
       }
 
       // 2. Clone the secondary voice into Cartesia
-
-      console.log("CLONING SECONDARY VOICE INTO CARTESIA");
+      console.log("CLONING SECONDARY VOICE INTO CARTESIA")
 
       // Prepare form data for secondary voice
-      const secondaryCartesiaForm = new FormData();
-      secondaryCartesiaForm.append('name', `${secondaryVoiceName}_clone`);
-      secondaryCartesiaForm.append('description', `Clone of secondary voice: ${secondaryVoiceName}`);
-      secondaryCartesiaForm.append('language', 'en');
-      secondaryCartesiaForm.append('mode', 'similarity');
-      secondaryCartesiaForm.append('enhance', 'false');
-      secondaryCartesiaForm.append('clip', secondarySampleAudioFile);
+      const secondaryCartesiaForm = new FormData()
+      secondaryCartesiaForm.append('name', `${secondaryVoiceName}_clone`)
+      secondaryCartesiaForm.append('description', `Clone of secondary voice: ${secondaryVoiceName}`)
+      secondaryCartesiaForm.append('language', 'en')
+      secondaryCartesiaForm.append('mode', 'similarity')
+      secondaryCartesiaForm.append('enhance', 'false')
+      secondaryCartesiaForm.append('clip', secondarySampleAudioFile)
 
-      const secondaryCloneOptions = {
+      const secondaryCloneOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Cartesia-Version': CARTESIA_VERSION,
           'X-API-Key': CARTESIA_API_KEY
         },
         body: secondaryCartesiaForm
-      };
+      }
 
-      let secondaryCartesiaVoiceId;
+      let secondaryCartesiaVoiceId: string
       try {
-        const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, secondaryCloneOptions);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.message || "Failed to clone secondary voice in Cartesia");
-        secondaryCartesiaVoiceId = data.id;
-        if (!secondaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia secondary clone.");
+        const response = await fetch(`${CARTESIA_API_BASE}/voices/clone`, secondaryCloneOptions)
+        const data: CartesiaCloneResponse = await response.json()
+        if (!response.ok) throw new Error(data?.message as string || "Failed to clone secondary voice in Cartesia")
+        secondaryCartesiaVoiceId = data.id
+        if (!secondaryCartesiaVoiceId) throw new Error("No voice_id returned for Cartesia secondary clone.")
       } catch (error) {
-        console.error("Error cloning secondary voice in Cartesia:", error);
-        throw error;
+        console.error("Error cloning secondary voice in Cartesia:", error)
+        throw error
       }
 
       // 3. mix the voices together, using the ids. Returns an embedding
       // Mix the primary and secondary Cartesia voices together by calling the Cartesia /voices/mix API endpoint
 
-      const mixUrl = `${CARTESIA_API_BASE}/voices/mix`;
-      console.log("MIXING VOICES IN CARTESIA");
+      const mixUrl = `${CARTESIA_API_BASE}/voices/mix`
+      console.log("MIXING VOICES IN CARTESIA")
 
       // Prepare the weights using the same ratios as for blending
       const voicesToMix = [
@@ -412,9 +429,9 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
           id: secondaryCartesiaVoiceId,
           weight: secondaryRatio
         }
-      ];
+      ]
 
-      const mixOptions = {
+      const mixOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Cartesia-Version': CARTESIA_VERSION,
@@ -422,29 +439,28 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ voices: voicesToMix })
-      };
-
-      let mixVoiceEmbedding;
-      try {
-        const response = await fetch(mixUrl, mixOptions);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.message || "Failed to mix voices in Cartesia");
-        mixVoiceEmbedding = data.embedding; 
-        if (!mixVoiceEmbedding) throw new Error("No mix embedding returned for Cartesia mix.");
-      } catch (error) {
-        console.error("Error mixing voices in Cartesia:", error);
-        throw error;
       }
-      
-      // 4. creat a new voice from the embedding
 
-      console.log("CREATING NEW VOICE IN CARTESIA FROM MIXED EMBEDDING");
+      let mixVoiceEmbedding: number[]
+      try {
+        const response = await fetch(mixUrl, mixOptions)
+        const data: CartesiaMixResponse = await response.json()
+        if (!response.ok) throw new Error(data?.message as string || "Failed to mix voices in Cartesia")
+        mixVoiceEmbedding = data.embedding
+        if (!mixVoiceEmbedding) throw new Error("No mix embedding returned for Cartesia mix.")
+      } catch (error) {
+        console.error("Error mixing voices in Cartesia:", error)
+        throw error
+      }
+
+      // 4. create a new voice from the embedding
+      console.log("CREATING NEW VOICE IN CARTESIA FROM MIXED EMBEDDING")
 
       // Create a new voice in Cartesia using the embedding from the mix step
-      let newCartesiaVoiceId;
+      let newCartesiaVoiceId: string
       try {
-        const createVoiceUrl = `${CARTESIA_API_BASE}/voices`;
-        const createVoiceOptions = {
+        const createVoiceUrl = `${CARTESIA_API_BASE}/voices`
+        const createVoiceOptions: RequestInit = {
           method: 'POST',
           headers: {
             'Cartesia-Version': CARTESIA_VERSION,
@@ -456,22 +472,21 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
             name: blendName,
             description: `A blend of ${primaryVoiceName} (${Math.round(primaryRatio * 100)}%) and ${secondaryVoiceName} (${Math.round(secondaryRatio * 100)}%)`
           })
-        };
-        const createVoiceResp = await fetch(createVoiceUrl, createVoiceOptions);
-        const createVoiceData = await createVoiceResp.json();
-        if (!createVoiceResp.ok) throw new Error(createVoiceData?.message || "Failed to create blended Cartesia voice");
-        newCartesiaVoiceId = createVoiceData.id;
-        if (!newCartesiaVoiceId) throw new Error("No voice_id returned for blended Cartesia voice creation.");
+        }
+        const createVoiceResp = await fetch(createVoiceUrl, createVoiceOptions)
+        const createVoiceData: CartesiaVoiceResponse = await createVoiceResp.json()
+        if (!createVoiceResp.ok) throw new Error(createVoiceData?.message as string || "Failed to create blended Cartesia voice")
+        newCartesiaVoiceId = createVoiceData.id
+        if (!newCartesiaVoiceId) throw new Error("No voice_id returned for blended Cartesia voice creation.")
       } catch (error) {
-        console.error("Error creating blended Cartesia voice:", error);
-        throw error;
+        console.error("Error creating blended Cartesia voice:", error)
+        throw error
       }
 
       // 5. synthesize speech for the input text using the new voice
-
       // Use Cartesia's TTS endpoint to synthesize speech from the input text using the new blended voice
-      const ttsUrl = `${CARTESIA_API_BASE}/tts/bytes`;
-      const ttsOptions = {
+      const ttsUrl = `${CARTESIA_API_BASE}/tts/bytes`
+      const ttsOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Cartesia-Version': CARTESIA_VERSION,
@@ -493,64 +508,61 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
             bit_rate: 256
           }
         })
-      };
+      }
       try {
-        const ttsResponse = await fetch(ttsUrl, ttsOptions);
+        const ttsResponse = await fetch(ttsUrl, ttsOptions)
         if (!ttsResponse.ok) {
-          const errorText = await ttsResponse.text();
-          throw new Error(`Cartesia TTS failed: ${ttsResponse.statusText} - ${errorText}`);
+          const errorText = await ttsResponse.text()
+          throw new Error(`Cartesia TTS failed: ${ttsResponse.statusText} - ${errorText}`)
         }
         // TTS returns raw audio bytes, wrap as blob and create object URL
-        const ttsAudioBlob = await ttsResponse.blob();
-        audioUrl = URL.createObjectURL(ttsAudioBlob);
-        blendedAudioBlob = ttsAudioBlob;
+        const ttsAudioBlob = await ttsResponse.blob()
+        audioUrl = URL.createObjectURL(ttsAudioBlob)
+        blendedAudioBlob = ttsAudioBlob
       } catch (error) {
-        console.error("Error synthesizing blended speech via Cartesia TTS:", error);
-        throw error;
+        console.error("Error synthesizing blended speech via Cartesia TTS:", error)
+        throw error
       }
-      console.log("SUCCESFULLY SYNTHESIZED SPEECH FOR BLENDED CARTESIA VOICE");
-
-      
-      break;
+      console.log("SUCCESSFULLY SYNTHESIZED SPEECH FOR BLENDED CARTESIA VOICE")
+      break
+    }
 
     default:
       throw new Error(`Unknown blend mode: ${blendMethod}`)
   }
-  
-  
-  //Lastly, we want to compare the blended audio with the primary and secondary for analysis
-  let primaryMCD = null;
-  let secondaryMCD = null;
+
+  // Lastly, we want to compare the blended audio with the primary and secondary for analysis
+  let primaryMCD: number | null = null
+  let secondaryMCD: number | null = null
   if (blendedAudioBlob) {
     const blendedAudioFile = new File([blendedAudioBlob], "blended.wav", { type: blendedAudioBlob.type })
 
     //compare the MCD (Mel Cepstral Distortion) of the blended audio with the primary
-    const formDataPrimary = new FormData();
-    formDataPrimary.append("voice_ref", primarySampleAudioFile);  
-    formDataPrimary.append("voice_test", blendedAudioFile); 
+    const formDataPrimary = new FormData()
+    formDataPrimary.append("voice_ref", primarySampleAudioFile)
+    formDataPrimary.append("voice_test", blendedAudioFile)
 
     const primaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
-        method: "POST",
-        body: formDataPrimary,
-    });
-  
-    const primaryBlendComparisonData = await primaryBlendComparisonResponse.json();
+      method: "POST",
+      body: formDataPrimary,
+    })
+
+    const primaryBlendComparisonData: MCDResponse = await primaryBlendComparisonResponse.json()
 
     //... and the MCD for the blended audio with the secondary
-    const formDataSecondary = new FormData();
-    formDataSecondary.append("voice_ref", secondarySampleAudioFile);   
-    formDataSecondary.append("voice_test", blendedAudioFile);
+    const formDataSecondary = new FormData()
+    formDataSecondary.append("voice_ref", secondarySampleAudioFile)
+    formDataSecondary.append("voice_test", blendedAudioFile)
 
     const secondaryBlendComparisonResponse = await fetch("http://localhost:8000/mcd", {
-        method: "POST",
-        body: formDataSecondary,
-    });
-    const secondaryBlendComparisonData = await secondaryBlendComparisonResponse.json();
+      method: "POST",
+      body: formDataSecondary,
+    })
+    const secondaryBlendComparisonData: MCDResponse = await secondaryBlendComparisonResponse.json()
 
-    primaryMCD = primaryBlendComparisonData.mcd;
-    secondaryMCD = secondaryBlendComparisonData.mcd;
+    primaryMCD = primaryBlendComparisonData.mcd
+    secondaryMCD = secondaryBlendComparisonData.mcd
   }
-  
 
   return {
     audioUrl,
