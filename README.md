@@ -50,7 +50,7 @@ pip install fastapi uvicorn librosa soundfile numpy
 
 2. **Run the backend server**
 ```
-python -m uvicorn backend.main:app -reload -port 8000
+python -m uvicorn backend.main:app --reload --port 8000
 ```
 
 3. This should run the backend API on `localhost:8000`
