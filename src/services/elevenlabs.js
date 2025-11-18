@@ -53,10 +53,6 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   const voice1Ratio = 1 - blendPosition.x
   const voice2Ratio = blendPosition.x
 
-
-  //option 1: change the voice that has most weight using speech-to-speech
-  //https://api.elevenlabs.io/v1/speech-to-speech/:voice_id
-
   // Pick primary and secondary voices based on which has the higher ratio
   const [voiceA, voiceB] = voiceIds
   let primaryVoiceId, secondaryVoiceId, primaryRatio, secondaryRatio, primaryVoiceName, secondaryVoiceName
@@ -75,7 +71,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   primaryVoiceName = voiceMapping[primaryVoiceId]
   secondaryVoiceName = voiceMapping[secondaryVoiceId]
 
-  // 1. Get a voice sample from the PRIMARY voice (before blending)
+  // Get a voice sample from the PRIMARY voice (before blending)
   const primarySampleResp = await fetch(
     `${API_BASE}/text-to-speech/${primaryVoiceId}`,
     {
@@ -106,7 +102,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   // Create a URL for the primary sample so it can be played
   const primarySampleUrl = URL.createObjectURL(primarySampleAudio)
 
-  // 2. Get a voice sample from the SECONDARY voice (it is needed to modify the primary voice)
+  // 2. Get a voice sample from the SECONDARY voice
   const secondarySampleResp = await fetch(
     `${API_BASE}/text-to-speech/${secondaryVoiceId}`,
     {
@@ -137,12 +133,12 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   // Create a URL for the secondary sample so it can be played
   const secondarySampleUrl = URL.createObjectURL(secondarySampleAudio)
 
-  // 3. Format blend variables 
+  // Format blend variables 
 
   const blendPercent = Math.round(secondaryRatio * 100)
   const blendName = `Blend_${primaryVoiceName}${Math.round(primaryRatio*100)}_${secondaryVoiceName}${Math.round(secondaryRatio*100)}`
   
-  // 4. Blend the voices by changing the primary voice to sound XX% like the secondary voice
+  // THE FOUR BLENDING ALGORITHMS
 
   let audioUrl;
   let blendedAudioBlob; 
@@ -150,24 +146,22 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
   switch (blendMethod) {
     case 'speech2speech':
       
-      // OPTION 1: USE SPEECH-TO-SPEECH remixing. Make Voice 1 sound more like voice 2 via speech. 
+      // OPTION 1: USE SPEECH-TO-SPEECH remixing. Make Voice 1 sound more like voice 2 via speech. Primarily transfer prosody of voice 2 onto voice 1.  
 
       const designText = `Remix this voice to sound ${Math.round(primaryRatio*100)}% more like voice with id ${secondaryVoiceId}.`
 
-      // Note: speech-to-speech endpoint requires FormData for file uploads
       const blendFormData = new FormData()
       blendFormData.append('audio', secondarySampleAudioFile)
       blendFormData.append('name', blendName)
       blendFormData.append('description', designText)
 
       const blendResponse = await fetch(`${API_BASE}/speech-to-speech/${primaryVoiceId}`, {
-      method: 'POST',
-      headers: {
-          'xi-api-key': API_KEY,
-          // Don't set Content-Type - browser will set it with boundary for FormData
-        },
-        body: blendFormData,
-      })
+        method: 'POST',
+        headers: {
+            'xi-api-key': API_KEY,
+          },
+          body: blendFormData,
+        })
       
       if (!blendResponse.ok) {
         const errorText = await blendResponse.text()
@@ -198,7 +192,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
           name: blendName,
           voice_description: `A voice that is ${Math.round(primaryRatio*100)}% like voice ID ${primaryVoiceId} and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
           guidance_scale: 80,
-          quality: 1, 
+          quality: 1, // I don't want any variability in the voice. I want it exactly as described
           auto_generate_text: true
         }),
       })
@@ -223,7 +217,8 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         },
         body: JSON.stringify({
           voice_name: blendName,
-          voice_description: `A voice that is ${Math.round(primaryRatio*100)}% like voice ID ${primaryVoiceId} and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
+          voice_description: `A voice that is ${Math.round(primaryRatio*100)}% like voice ID ${primaryVoiceId} 
+                              and ${blendPercent}% like voice ID ${secondaryVoiceId}.`,
           generated_voice_id: selectedVoice,
         }),
       });
@@ -265,9 +260,9 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
 
       // Create a new voice via IVC by uploading both primary and secondary sample audio
 
-      // 1. Prepare FormData with both samples
+      // Prepare FormData with both samples
       const formData = new FormData();
-      // Main sample
+      // Primary sample
       formData.append('files', primarySampleAudio, 'primary_sample.wav');
       // Secondary sample (optional field can be used multiple times for multi-reference)
       if (secondarySampleAudio) {
@@ -282,13 +277,11 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       // The API expects 'labels' for custom grouping (optional)
       formData.append('labels', JSON.stringify({ type: "ivc-blend", primary: primaryVoiceId, secondary: secondaryVoiceId }));
 
-      // 2. Upload samples & register new voice
+      // Upload samples & register new voice
       const addVoiceResp = await fetch(`${API_BASE}/voices/add`, {
         method: 'POST',
         headers: {
           'xi-api-key': API_KEY,
-          // Do not set Content-Type (browser will set proper multipart/form-data boundary)
-          // 'Content-Type': 'multipart/form-data',
         },
         body: formData,
       });
@@ -304,7 +297,7 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
         throw new Error('No voice_id returned after adding voice via IVC');
       }
 
-      // 3. Synthesize speech for the input text using the newly created voice
+      // Synthesize speech for the input text using the newly created voice
       const ivcTTSResp = await fetch(`${API_BASE}/text-to-speech/${newVoiceId}`, {
         method: 'POST',
         headers: {
@@ -351,9 +344,8 @@ export async function blendVoices(voiceIds, blendPosition, text, blendMethod, vo
       const primaryCloneOptions = {
         method: 'POST',
         headers: {
-          'Cartesia-Version': CARTESIA_VERSION,
+          'Cartesia-Version': CARTESIA_VERSION, //2025-04-16
           'X-API-Key': CARTESIA_API_KEY
-          // Don't set Content-Type for FormData
         },
         body: primaryCartesiaForm
       };

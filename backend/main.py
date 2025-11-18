@@ -112,23 +112,16 @@ async def compute_mcd(
     voice_ref: UploadFile = File(...),   # e.g., voice A
     voice_test: UploadFile = File(...)   # e.g., blend or voice B
 ):
-    
-    print("Received files:", voice_ref.filename, voice_test.filename)
+    """Compute MCD between two uploaded audio files."""
     raw_ref = await voice_ref.read()
     raw_test = await voice_test.read()
-
-    print(f"Size of voice_ref: {len(raw_ref)} bytes, voice_test: {len(raw_test)} bytes")
 
     mfcc_ref = get_mfcc_from_bytes(raw_ref)
     mfcc_test = get_mfcc_from_bytes(raw_test)
 
-    print(f"MFCC shapes - ref: {mfcc_ref.shape}, test: {mfcc_test.shape}")
-    print("Sample MFCC values:", mfcc_ref[0][:5], mfcc_test[0][:5])
-
     # value = mcd(mfcc_ref, mfcc_test)
     # DTW-based MCD
     value = mcd_dtw(mfcc_ref, mfcc_test)
-    print(f"Computed MCD: {value}")
 
     return JSONResponse({
         "mcd": value

@@ -25,6 +25,7 @@ function VoiceBlender() {
     return map
   }, {})
 
+  //load voices immediately
   useEffect(() => {
     loadVoices()
   }, [])
